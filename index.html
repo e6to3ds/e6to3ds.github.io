@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple e621 Client</title>
+    <style>
+        /* Basic CSS 1/2.1 styling for compatibility */
+        body {
+            font-family: sans-serif; /* Common basic font */
+            margin: 10px;
+            background-color: #f0f0f0;
+        }
+        #search-area {
+            margin-bottom: 15px;
+            padding: 5px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+        }
+        #search-input {
+            padding: 5px;
+            width: 180px; /* Fixed width */
+            border: 1px solid #ccc;
+        }
+        #search-button {
+            padding: 5px 10px;
+            cursor: pointer; /* Indicate clickable */
+            border: 1px solid #ccc;
+            background-color: #eee;
+        }
+        #results {
+            margin-top: 15px;
+            border-top: 1px solid #ccc;
+            padding-top: 15px;
+            text-align: center; /* Center images if they are smaller than container */
+        }
+        .post-image {
+            margin: 5px;
+            border: 1px solid #aaa;
+            padding: 2px;
+            max-width: 150px; /* Limit image size */
+            height: auto; /* Maintain aspect ratio */
+            display: inline-block; /* Allow multiple images on a line */
+            vertical-align: top; /* Align images nicely */
+        }
+        .error-message {
+            color: red;
+        }
+        .info-message {
+            color: gray;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Simple e926 Client</h1>
+
+    <div id="search-area">
+        <input type="text" id="search-input" placeholder="Enter tags...">
+        <button id="search-button">Search</button>
+    </div>
+
+    <div id="results">
+        <!-- Images will be loaded here -->
+        <p class="info-message">Enter tags and click Search.</p>
+    </div>
+
+    <script>
+        // ECMAScript (partial support for ECMA-262 5th Edition)
+        // Using XMLHttpRequest Level 2 and DOM Levels 1-3
+
+        var searchInput = document.getElementById('search-input');
+        var searchButton = document.getElementById('search-button');
+        var resultsDiv = document.getElementById('results');
+
+        function clearResults() {
+            // Use innerHTML = '' for simple clearing of all child elements
+            resultsDiv.innerHTML = '';
+        }
+
+        function displayMessage(message, type) {
+            clearResults();
+            var p = document.createElement('p');
+            // Use basic className assignment
+            p.className = type + '-message'; // e.g., 'error-message' or 'info-message'
+            // Use textContent for safety, although innerHTML could be used for simple text too
+            p.textContent = message;
+            resultsDiv.appendChild(p);
+        }
+
+        function searchE926() {
+            var tags = searchInput.value.trim(); // trim() is ES5
+
+            if (tags === '') {
+                displayMessage('Please enter some tags.', 'info');
+                return;
+            }
+
+            displayMessage('Searching for "' + tags + '"...', 'info');
+
+            // Construct API URL - using HTTPS as TLS 1.0 is supported
+            var apiUrl = 'https://e621.net/posts.json?tags=' + encodeURIComponent(tags); // encodeURIComponent is standard
+
+            // Use XMLHttpRequest as fetch API might not be supported
+            var xhr = new XMLHttpRequest();
+
+            // xhr.onload is part of XMLHttpRequest Level 2
+            xhr.onload = function() {
+                // Check status code (2xx range indicates success)
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        // JSON.parse is crucial and expected in ES5
+                        var response = JSON.parse(xhr.responseText);
+                        // e926 API response structure
+                        var posts = response.posts;
+
+                        clearResults();
+
+                        if (posts && posts.length > 0) {
+                            // Use forEach or a traditional for loop (forEach is ES5)
+                            // A traditional for loop is safer if ES5 is only partial
+                             for (var i = 0; i < posts.length; i++) {
+                                var post = posts[i];
+                                // Check if the post has a file URL
+                                if (post.file && post.file.url) {
+                                    var img = document.createElement('img'); // DOM Level 1
+                                    img.className = 'post-image';
+                                    img.src = post.file.url;
+                                    // Basic alt text for accessibility
+                                    // Safely access tags if they exist
+                                    img.alt = 'Image ID: ' + post.id + ' Tags: ' + (post.tags && post.tags.general ? post.tags.general.join(' ') : '');
+
+                                    // Basic error handling for individual images
+                                    img.onerror = function() {
+                                        // Log error to console if available
+                                        if (typeof console !== 'undefined' && console.error) {
+                                            console.error('Failed to load image:', this.src);
+                                        }
+                                        // Optionally hide or remove the broken image element
+                                        // this.style.display = 'none';
+                                    };
+
+                                    resultsDiv.appendChild(img); // DOM Level 1
+                                }
+                            }
+                        } else {
+                            displayMessage('No results found for "' + tags + '".', 'info');
+                        }
+
+                    } catch (e) {
+                        // Catch JSON parsing or other processing errors
+                         if (typeof console !== 'undefined' && console.error) {
+                             console.error('Error parsing JSON or processing response:', e);
+                         }
+                        displayMessage('Error processing API response.', 'error');
+                    }
+                } else {
+                    // Handle non-2xx status codes (e.g., 404, 429 Rate Limit)
+                     if (typeof console !== 'undefined' && console.error) {
+                        console.error('API returned status:', xhr.status, xhr.statusText);
+                     }
+                    displayMessage('Error fetching data from API. Status: ' + xhr.status, 'error');
+                    // Provide more specific messages for common errors if possible
+                    if (xhr.status === 429) {
+                        displayMessage('Rate limit exceeded. Please wait before searching again.', 'error');
+                    }
+                }
+            };
+
+            // xhr.onerror is part of XMLHttpRequest Level 2
+            xhr.onerror = function() {
+                 if (typeof console !== 'undefined' && console.error) {
+                    console.error('Network error occurred.');
+                 }
+                displayMessage('Network error occurred. Could not reach the API.', 'error');
+            };
+
+            // Open the request (method, url, async)
+            xhr.open('GET', apiUrl, true);
+
+            // e926 API requires a User-Agent header.
+            // setRequestHeader is part of XMLHttpRequest Level 2.
+            // Check if it's available and try to set it.
+            // Specific browser environments (like older 3DS) might block setting this header.
+            if (xhr.setRequestHeader) {
+                 xhr.setRequestHeader('User-Agent', 'Simple e926 Client/1.0 (3DS Browser)');
+            } else {
+                 // Fallback if setRequestHeader is not available/allowed
+                 if (typeof console !== 'undefined' && console.warn) {
+                     console.warn('setRequestHeader not available, proceeding without User-Agent. API might reject request.');
+                 }
+            }
+
+
+            // Send the request
+            xhr.send();
+        }
+
+        // Attach event listener to the button
+        // addEventListener is part of DOM Level 2
+        searchButton.addEventListener('click', searchE926);
+
+        // Optional: Allow pressing Enter in the input field
+        searchInput.addEventListener('keypress', function(event) {
+            // Check for the Enter key (key code 13)
+            // event.which is deprecated but commonly used for compatibility
+            if (event.which === 13 || event.keyCode === 13) {
+                event.preventDefault(); // Prevent default action (like form submission)
+                searchE926();
+            }
+        });
+
+    </script>
+
+</body>
+</html>
+
